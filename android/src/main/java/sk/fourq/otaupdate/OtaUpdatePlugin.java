@@ -49,9 +49,10 @@ import java.util.Map;
  * OtaUpdatePlugin
  */
 @TargetApi(Build.VERSION_CODES.M)
-public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChannel.StreamHandler, MethodCallHandler, PluginRegistry.RequestPermissionsResultListener, ProgressListener {
+public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChannel.StreamHandler, MethodCallHandler,
+        PluginRegistry.RequestPermissionsResultListener, ProgressListener {
 
-    //CONSTANTS
+    // CONSTANTS
     private static final String BYTES_DOWNLOADED = "BYTES_DOWNLOADED";
     private static final String BYTES_TOTAL = "BYTES_TOTAL";
     private static final String ERROR = "ERROR";
@@ -65,7 +66,7 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
     private static final String STREAM_CHANNEL = "sk.fourq.ota_update/stream";
     private static final String METHOD_CHANNEL = "sk.fourq.ota_update/method";
 
-    //BASIC PLUGIN STATE
+    // BASIC PLUGIN STATE
     private Context context;
     private Activity activity;
     private EventChannel.EventSink progressSink;
@@ -74,14 +75,14 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
     private BinaryMessenger messanger;
     private OkHttpClient client;
 
-    //DOWNLOAD SPECIFIC PLUGIN STATE. PLUGIN SUPPORT ONLY ONE DOWNLOAD AT A TIME
+    // DOWNLOAD SPECIFIC PLUGIN STATE. PLUGIN SUPPORT ONLY ONE DOWNLOAD AT A TIME
     private Call currentCall;
     private String downloadUrl;
     private JSONObject headers;
     private String filename;
     private String checksum;
 
-    //FLUTTER EMBEDDING V2 - PLUGIN BINDING
+    // FLUTTER EMBEDDING V2 - PLUGIN BINDING
     @Override
     public void onAttachedToEngine(FlutterPluginBinding binding) {
         Log.d(TAG, "onAttachedToEngine");
@@ -93,7 +94,8 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
         Log.d(TAG, "onDetachedFromEngine");
     }
 
-    //FLUTTER EMBEDDING V2 - ACTIVITY BINDING. PLUGIN USES ACTIVITY FOR PERMISSION REQUESTS
+    // FLUTTER EMBEDDING V2 - ACTIVITY BINDING. PLUGIN USES ACTIVITY FOR PERMISSION
+    // REQUESTS
     @Override
     public void onAttachedToActivity(ActivityPluginBinding activityPluginBinding) {
         Log.d(TAG, "onAttachedToActivity");
@@ -116,10 +118,10 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
         Log.d(TAG, "onDetachedFromActivity");
     }
 
-    //METHOD LISTENER
+    // METHOD LISTENER
     @Override
     public void onMethodCall(MethodCall call, Result result) {
-        Log.d(TAG, "onMethodCall "+call.method);
+        Log.d(TAG, "onMethodCall " + call.method);
         if (call.method.equals("getAbi")) {
             result.success(Build.SUPPORTED_ABIS[0]);
         } else if (call.method.equals("cancel")) {
@@ -134,15 +136,16 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
         }
     }
 
-    //STREAM LISTENER
+    // STREAM LISTENER
     @Override
     public void onListen(Object arguments, EventChannel.EventSink events) {
         if (progressSink != null) {
-            progressSink.error("" + OtaStatus.ALREADY_RUNNING_ERROR.ordinal(), "Method call was cancelled. One method call is already running!", null);
+            progressSink.error("" + OtaStatus.ALREADY_RUNNING_ERROR.ordinal(),
+                    "Method call was cancelled. One method call is already running!", null);
         }
         Log.d(TAG, "STREAM OPENED");
         progressSink = events;
-        //READ ARGUMENTS FROM CALL
+        // READ ARGUMENTS FROM CALL
         Map argumentsMap = ((Map) arguments);
         downloadUrl = argumentsMap.get(ARG_URL).toString();
         try {
@@ -196,7 +199,8 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
     }
 
     /**
-     * Execute download and start installation. This method is called either from onListen method
+     * Execute download and start installation. This method is called either from
+     * onListen method
      * or from onRequestPermissionsResult if user had to grant permissions.
      */
     private void executeDownload() {
@@ -207,11 +211,11 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
             }
 
             String dataDir = context.getApplicationInfo().dataDir + "/files/ota_update";
-            //PREPARE URLS
+            // PREPARE URLS
             final String destination = dataDir + "/" + filename;
             final Uri fileUri = Uri.parse("file://" + destination);
 
-            //DELETE APK FILE IF IT ALREADY EXISTS
+            // DELETE APK FILE IF IT ALREADY EXISTS
             final File file = new File(destination);
             if (file.exists()) {
                 if (!file.delete()) {
@@ -219,7 +223,8 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
                 }
             } else if (!file.getParentFile().exists()) {
                 if (!file.getParentFile().mkdirs()) {
-                    reportError(OtaStatus.INTERNAL_ERROR, "unable to create ota_update folder in internal storage", null);
+                    reportError(OtaStatus.INTERNAL_ERROR, "unable to create ota_update folder in internal storage",
+                            null);
                 }
             }
 
@@ -246,7 +251,8 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
                 @Override
                 public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
                     if (!response.isSuccessful()) {
-                        reportError(OtaStatus.DOWNLOAD_ERROR, "Http request finished with status " + response.code(), null);
+                        reportError(OtaStatus.DOWNLOAD_ERROR, "Http request finished with status " + response.code(),
+                                null);
                     }
                     try {
                         BufferedSink sink = Okio.buffer(Okio.sink(file));
@@ -275,14 +281,15 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
      * Download has been completed
      *
      * 1. Check if file exists
-     * 2. If checksum was provided, compute downloaded file checksum and compare with provided value
+     * 2. If checksum was provided, compute downloaded file checksum and compare
+     * with provided value
      * 3. If checks above pass, trigger installation
      *
      * @param destination Destination path
      * @param fileUri     Uri to file
      */
     private void onDownloadComplete(final String destination, final Uri fileUri) {
-        //DOWNLOAD IS COMPLETE, UNREGISTER RECEIVER AND CLOSE PROGRESS SINK
+        // DOWNLOAD IS COMPLETE, UNREGISTER RECEIVER AND CLOSE PROGRESS SINK
         final File downloadedFile = new File(destination);
         if (!downloadedFile.exists()) {
             reportError(OtaStatus.DOWNLOAD_ERROR, "File was not downloaded", null);
@@ -290,26 +297,26 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
         }
 
         if (checksum != null) {
-            //IF user provided checksum verify file integrity
+            // IF user provided checksum verify file integrity
             try {
                 if (!Sha256ChecksumValidator.validateChecksum(checksum, downloadedFile)) {
-                    //SEND CHECKSUM ERROR EVENT
+                    // SEND CHECKSUM ERROR EVENT
                     reportError(OtaStatus.CHECKSUM_ERROR, "Checksum verification failed", null);
                     return;
                 }
             } catch (RuntimeException ex) {
-                //SEND CHECKSUM ERROR EVENT
+                // SEND CHECKSUM ERROR EVENT
                 reportError(OtaStatus.CHECKSUM_ERROR, ex.getMessage(), ex);
                 return;
             }
         }
-        //TRIGGER APK INSTALLATION
+        // TRIGGER APK INSTALLATION
         handler.post(new Runnable() {
-                         @Override
-                         public void run() {
-                             executeInstallation(fileUri, downloadedFile);
-                         }
-                     }
+            @Override
+            public void run() {
+                executeInstallation(fileUri, downloadedFile);
+            }
+        }
 
         );
     }
@@ -317,8 +324,10 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
     /**
      * Execute installation
      *
-     * For android API level >= 24 start intent for ACTION_INSTALL_PACKAGE (native installer)
-     * For android API level < 24 start intent ACTION_VIEW (open file, android should prompt for installation)
+     * For android API level >= 24 start intent for ACTION_INSTALL_PACKAGE (native
+     * installer)
+     * For android API level < 24 start intent ACTION_VIEW (open file, android
+     * should prompt for installation)
      *
      * @param fileUri        Uri for file path
      * @param downloadedFile Downloaded file
@@ -326,22 +335,27 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
     private void executeInstallation(Uri fileUri, File downloadedFile) {
         Intent intent;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            //AUTHORITY NEEDS TO BE THE SAME ALSO IN MANIFEST
+            // AUTHORITY NEEDS TO BE THE SAME ALSO IN MANIFEST
             Uri apkUri = FileProvider.getUriForFile(context, androidProviderAuthority, downloadedFile);
             intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
             intent.setData(apkUri);
-            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
         } else {
             intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(fileUri, "application/vnd.android.package-archive");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            // intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
         }
-        //SEND INSTALLING EVENT
+        // SEND INSTALLING EVENT
         if (progressSink != null) {
-            //NOTE: We have to start intent before sending event to stream
-            //if application tries to programatically terminate app it may produce race condition
-            //and application may end before intent is dispatched
+            // NOTE: We have to start intent before sending event to stream
+            // if application tries to programatically terminate app it may produce race
+            // condition
+            // and application may end before intent is dispatched
             context.startActivity(intent);
             progressSink.success(Arrays.asList("" + OtaStatus.INSTALLING.ordinal(), ""));
             progressSink.endOfStream();
@@ -363,7 +377,7 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
                 progressSink = null;
             }
         } else {
-            //REPORT ERROR ON UI THREAD
+            // REPORT ERROR ON UI THREAD
             handler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -392,7 +406,8 @@ public class OtaUpdatePlugin implements FlutterPlugin, ActivityAware, EventChann
                     } else {
                         long bytesDownloaded = data.getLong(BYTES_DOWNLOADED);
                         long bytesTotal = data.getLong(BYTES_TOTAL);
-                        progressSink.success(Arrays.asList("" + OtaStatus.DOWNLOADING.ordinal(), "" + ((bytesDownloaded * 100) / bytesTotal)));
+                        progressSink.success(Arrays.asList("" + OtaStatus.DOWNLOADING.ordinal(),
+                                "" + ((bytesDownloaded * 100) / bytesTotal)));
                     }
                 }
             }
